@@ -196,6 +196,27 @@ class HD1K(FlowDataset):
             seq_ix += 1
 
 
+class MoCA(FlowDataset):
+    def __init__(self, aug_params=None, split='train', root='/home/user1/git/MoCA-Mask', dstype='frame'):
+        super(MoCA, self).__init__(aug_params)
+        flow_root = osp.join(root, 'flow', split)
+        image_root = osp.join(root, dstype, split)
+
+        if split == 'val':
+            self.is_test = True
+
+        # TODO: frames
+        all_img_paths = sorted(glob(osp.join(image_root, '*.jpg')))
+        for img1, img2 in zip(all_img_paths[:-1], all_img_paths[1:]):
+            scene1, idx1 = img1.split('/')[-1][:-10], img1.split('/')[-1][-9:-4]
+            scene2, idx2 = img2.split('/')[-1][:-10], img2.split('/')[-1][-9:-4]
+            if scene1 == scene2:
+                # print(scene1, idx1, scene2, idx2)
+                self.image_list += [ [img1, img2] ]
+                self.extra_info += [(scene1, idx1)] # scene and frame_id
+                if split != 'val':
+                    self.flow_list += [osp.join(flow_root, scene1 + '_' + idx1 + '.jpg')]
+
 def fetch_dataloader(args, TRAIN_DS='C+T+K+S+H'):
     """ Create the data loader for the corresponding trainign set """
 
@@ -226,6 +247,10 @@ def fetch_dataloader(args, TRAIN_DS='C+T+K+S+H'):
     elif args.stage == 'kitti':
         aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.4, 'do_flip': False}
         train_dataset = KITTI(aug_params, split='training')
+
+    elif args.stage == 'moca':
+        aug_params = {'crop_size': args.image_size, 'min_scale': -0.2, 'max_scale': 0.6, 'do_flip': True}
+        train_dataset = MoCA(aug_params, split='train', dstype='frame')
 
     train_loader = data.DataLoader(train_dataset, batch_size=args.batch_size, 
         pin_memory=False, shuffle=True, num_workers=4, drop_last=True)
